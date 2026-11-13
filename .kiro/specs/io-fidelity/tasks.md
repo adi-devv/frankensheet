@@ -89,10 +89,10 @@ Order: model → normalize → read → write. Write depends on formula.ts from 
 - [ ] **4.10** Add row insert/delete functions: `insertRows(sheetXml, sheetName, at, count)` and `deleteRows(sheetXml, at, count)` shift `<row r>`, `<c r>`, dimension, merges, formulas. Use `shiftFormula` from formula.ts. Shift formulas in other sheets (qualified refs only), defined names, and charts. Port logic from `spike/plan-b-fflate.ts`. These are separate exported functions used by merge in Phase 3, NOT called implicitly by write.
   - Test: add to `write.test.ts` — insert 2 rows, verify `<row r>` and `<c r>` shifted, formulas updated (e.g., `SUM(B3:E3)` becomes `SUM(B5:E5)`). Delete 1 row, verify refs shifted down.
 
-- [ ] **4.11** Add `blankXlsx(sheetNames: string[]): Uint8Array` test helper in `packages/core/src/testing/` that builds a minimal valid .xlsx with fflate. Used for P4 property test (generated books need a base file).
+- [x] **4.11** Add `blankXlsx(sheetNames: string[]): Uint8Array` test helper in `packages/core/src/testing/` that builds a minimal valid .xlsx with fflate. Used for P4 property test (generated books need a base file).
   - Test: no dedicated test; used by write.prop.test.ts.
 
-- [ ] **4.12** Add property test P4: generate small books with fast-check, write them (using blankXlsx as originalBytes), read back, normalize, and assert equality. Use order-independent comparison for shared strings. Formula cells lose their cached value on write, so the comparison ignores `v` on formula cells (implement this in normalize or the test).
+- [x] **4.12** Add property test P4: generate small books with fast-check, write them (using blankXlsx as originalBytes), read back, normalize, and assert equality. Use order-independent comparison for shared strings. Formula cells lose their cached value on write, so the comparison ignores `v` on formula cells (implement this in normalize or the test).
   - Test: `packages/core/src/write.prop.test.ts`
 
 - [ ] **4.13** Integration fixture tests: read each of the 5 Phase 1 fixtures, make the spike edits (change B2, C2, E5; insert 2 rows at row 3), write, and verify with `checkXmlWellFormed`. Compare output cell values to expected.
