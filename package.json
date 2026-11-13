@@ -15,14 +15,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "spike": "npx tsx spike/plan-a-exceljs.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.6",
     "eslint": "^10.14.0",
+    "exceljs": "^4.4.0",
     "fast-check": "^4.10.2",
+    "fflate": "^0.8.2",
     "prettier": "^3.10.1",
+    "tsx": "^4.19.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.2",
     "vitest": "^3.2.7"
