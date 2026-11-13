@@ -6,51 +6,51 @@ Order: model → normalize → read → write. Write depends on formula.ts from 
 
 ## 1. Model types
 
-- [ ] **1.1** Write `packages/core/src/model.ts` with `CellValue`, `Cell`, `Row`, `Sheet`, `Book` types per design.md and spreadsheet-semantics.md. Include `Book.names` for defined names.
+- [x] **1.1** Write `packages/core/src/model.ts` with `CellValue`, `Cell`, `Row`, `Sheet`, `Book` types per design.md and spreadsheet-semantics.md. Include `Book.names` for defined names.
   - Test: `packages/core/src/model.test.ts` — unit tests for type guards if added.
 
 ---
 
 ## 2. Normalize
 
-- [ ] **2.1** Write `packages/core/src/normalize.ts` with `normalizeValue(v: CellValue): CellValue` that trims nothing, keeps numbers as-is, and treats empty string as null.
+- [x] **2.1** Write `packages/core/src/normalize.ts` with `normalizeValue(v: CellValue): CellValue` that trims nothing, keeps numbers as-is, and treats empty string as null.
   - Test: `packages/core/src/normalize.test.ts` — unit tests for edge cases (empty, whitespace-only, zero, false, error objects).
 
-- [ ] **2.2** Add property test for normalize idempotence: `normalize(normalize(v)) === normalize(v)`.
+- [x] **2.2** Add property test for normalize idempotence: `normalize(normalize(v)) === normalize(v)`.
   - Test: `packages/core/src/normalize.prop.test.ts`
 
 ---
 
 ## 3. Read (depends on normalize)
 
-- [ ] **3.1** Write `packages/core/src/read.ts` with `read(bytes: Uint8Array): Book`. Use fflate `unzipSync` to extract entries.
+- [x] **3.1** Write `packages/core/src/read.ts` with `read(bytes: Uint8Array): Book`. Use fflate `unzipSync` to extract entries.
   - Test: `packages/core/src/read.test.ts` — smoke test with a minimal 1-sheet fixture (1 cell, 1 number).
 
-- [ ] **3.2** Implement `parseWorkbook(xml: string)` to extract sheet names and rIds from `xl/workbook.xml`.
+- [x] **3.2** Implement `parseWorkbook(xml: string)` to extract sheet names and rIds from `xl/workbook.xml`.
   - Test: add to `read.test.ts` — fixture with 2 sheets, verify names extracted.
 
-- [ ] **3.3** Implement `parseWorkbookRels(xml: string)` to build `Map<rId, target>` from `xl/_rels/workbook.xml.rels`.
+- [x] **3.3** Implement `parseWorkbookRels(xml: string)` to build `Map<rId, target>` from `xl/_rels/workbook.xml.rels`.
   - Test: add to `read.test.ts` — verify relationship resolution.
 
-- [ ] **3.4** Implement `parseSharedStrings(xml: string): string[]` to extract `<si><t>` entries from `xl/sharedStrings.xml`.
+- [x] **3.4** Implement `parseSharedStrings(xml: string): string[]` to extract `<si><t>` entries from `xl/sharedStrings.xml`.
   - Test: add to `read.test.ts` — fixture with 3 shared strings, including one with `&lt;` entity.
 
-- [ ] **3.5** Implement `parseSheet(xml: string, sharedStrings: string[]): Sheet` to read rows and cells. Handle `<c t="s">` (shared string index), `<c t="inlineStr">`, `<c t="b">` (boolean), `<c t="e">` (error), and number cells (no `t` attribute). Map empty cells to `v: null`.
+- [x] **3.5** Implement `parseSheet(xml: string, sharedStrings: string[]): Sheet` to read rows and cells. Handle `<c t="s">` (shared string index), `<c t="inlineStr">`, `<c t="b">` (boolean), `<c t="e">` (error), and number cells (no `t` attribute). Map empty cells to `v: null`.
   - Test: add to `read.test.ts` — fixture with mixed cell types in one sheet.
 
-- [ ] **3.6** Expand shared formulas in `parseSheet`: `<f t="shared" ref="..." si="N">` stores master; `<f t="shared" si="N"/>` references it. Derive per-cell A1 formulas by offsetting the master. Store as `Cell.f` (A1, no leading `=`).
+- [x] **3.6** Expand shared formulas in `parseSheet`: `<f t="shared" ref="..." si="N">` stores master; `<f t="shared" si="N"/>` references it. Derive per-cell A1 formulas by offsetting the master. Store as `Cell.f` (A1, no leading `=`).
   - Test: add to `read.test.ts` — fixture with a 3×2 shared formula block, verify each cell has correct A1 formula.
 
-- [ ] **3.7** Detect and convert date1904 system: read `<workbookPr date1904="1"/>`. If present, parse `xl/styles.xml` cellXfs → numFmtId; a cell is a date if its numFmtId is a built-in date id (14–22, 45–47) or a custom numFmt whose code has d/m/y/h/s outside quotes and brackets. Convert only those cells by the 1904→1900 offset (1462 days). Store `Book.date1904 = true`.
+- [x] **3.7** Detect and convert date1904 system: read `<workbookPr date1904="1"/>`. If present, parse `xl/styles.xml` cellXfs → numFmtId; a cell is a date if its numFmtId is a built-in date id (14–22, 45–47) or a custom numFmt whose code has d/m/y/h/s outside quotes and brackets. Convert only those cells by the 1904→1900 offset (1462 days). Store `Book.date1904 = true`.
   - Test: add to `read.test.ts` — fixture with date1904=1, verify a known date serial in a date-formatted cell is converted.
 
-- [ ] **3.8** Parse defined names: `<definedNames><definedName name="...">formula</definedName></definedNames>` → `Book.names: Record<string, string>`.
+- [x] **3.8** Parse defined names: `<definedNames><definedName name="...">formula</definedName></definedNames>` → `Book.names: Record<string, string>`.
   - Test: add to `read.test.ts` — fixture with 2 defined names, verify extracted.
 
-- [ ] **3.9** Flatten rich text: `<is><r><t>A</t></r><r><t>B</t></r></is>` becomes `"AB"`.
+- [x] **3.9** Flatten rich text: `<is><r><t>A</t></r><r><t>B</t></r></is>` becomes `"AB"`.
   - Test: add to `read.test.ts` — fixture cell with rich text, verify plain string.
 
-- [ ] **3.10** Add property test: read arbitrary small .xlsx files (generated by fast-check arbitrary), verify Book structure is valid (no undefined holes, colCount matches max cell index, etc.).
+- [x] **3.10** Add property test: read arbitrary small .xlsx files (generated by fast-check arbitrary), verify Book structure is valid (no undefined holes, colCount matches max cell index, etc.).
   - Test: `packages/core/src/read.prop.test.ts`
 
 ---
@@ -102,7 +102,7 @@ Order: model → normalize → read → write. Write depends on formula.ts from 
 
 ## 5. Shared arbitraries
 
-- [ ] **5.1** Write `packages/core/src/testing/arbitraries.ts` with `arbCellValue()`, `arbCell()`, `arbRow()`, `arbSheet({ maxRows?: number, maxCols?: number })`, `arbBook()`. Small defaults: ≤30 rows, ≤8 cols. Include simple formulas like `SUM(A1:A3)`, `A1+B1`.
+- [x] **5.1** Write `packages/core/src/testing/arbitraries.ts` with `arbCellValue()`, `arbCell()`, `arbRow()`, `arbSheet({ maxRows?: number, maxCols?: number })`, `arbBook()`. Small defaults: ≤30 rows, ≤8 cols. Include simple formulas like `SUM(A1:A3)`, `A1+B1`.
   - Test: no dedicated test file; used by all prop tests. Verify by running prop tests.
 
 ---

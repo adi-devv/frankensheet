@@ -1,6 +1,8 @@
 // Shared fast-check arbitraries for property tests
 
 import * as fc from 'fast-check';
+import type { CellValue, Cell, Row, Sheet, Book } from '../model.js';
+import { toR1C1 } from '../formula.js';
 
 /**
  * Generate a valid cell reference (A1 notation).
@@ -104,4 +106,120 @@ export function arbPosition(): fc.Arbitrary<{ row: number; col: number }> {
     row: fc.integer({ min: 0, max: 99 }),
     col: fc.integer({ min: 0, max: 25 }),
   });
+}
+
+/**
+ * Generate a cell value: null, number, string, boolean, or error.
+ */
+export function arbCellValue(): fc.Arbitrary<CellValue> {
+  return fc.oneof(
+    fc.constant(null),
+    fc.double({ min: -1e6, max: 1e6, noNaN: true }),
+    fc.string({ maxLength: 50 }),
+    fc.boolean(),
+    fc.record({
+      error: fc.constantFrom('#REF!', '#DIV/0!', '#VALUE!', '#NAME?', '#N/A', '#NULL!'),
+    }),
+  );
+}
+
+/**
+ * Generate a cell with optional formula.
+ * Small probability of having a formula.
+ */
+export function arbCell(): fc.Arbitrary<Cell> {
+  return fc.oneof(
+    // 70% chance: cell with value only
+    fc.record({
+      v: arbCellValue(),
+    }),
+    // 30% chance: cell with formula (and derived R1C1 form)
+    fc
+      .tuple(arbFormula(), arbPosition(), arbCellValue())
+      .map(([formula, pos, value]) => ({
+        v: value,
+        f: formula,
+        fr: toR1C1(formula, pos),
+      })),
+  );
+}
+
+/**
+ * Generate a row with sparse cells.
+ * @param maxCols Maximum number of columns (default 8)
+ */
+export function arbRow(maxCols = 8): fc.Arbitrary<Row> {
+  return fc
+    .array(
+      fc.tuple(fc.integer({ min: 0, max: maxCols - 1 }), arbCell()),
+      { maxLength: maxCols },
+    )
+    .map((entries) => {
+      const cells = new Map<number, Cell>();
+      for (const [col, cell] of entries) {
+        cells.set(col, cell);
+      }
+      return { cells };
+    });
+}
+
+/**
+ * Generate a sheet with sparse rows and cells.
+ * @param options.maxRows Maximum number of rows (default 30)
+ * @param options.maxCols Maximum number of columns (default 8)
+ */
+export function arbSheet(options?: { maxRows?: number; maxCols?: number }): fc.Arbitrary<Sheet> {
+  const maxRows = options?.maxRows ?? 30;
+  const maxCols = options?.maxCols ?? 8;
+
+  return fc
+    .tuple(
+      arbSheetName(),
+      fc.array(
+        fc.tuple(fc.integer({ min: 0, max: maxRows - 1 }), arbRow(maxCols)),
+        { maxLength: maxRows },
+      ),
+    )
+    .map(([name, rowEntries]) => {
+      const rows = new Map<number, Row>();
+      let maxCol = 0;
+
+      for (const [rowIndex, row] of rowEntries) {
+        rows.set(rowIndex, row);
+        for (const colIndex of row.cells.keys()) {
+          maxCol = Math.max(maxCol, colIndex);
+        }
+      }
+
+      return {
+        name,
+        rows,
+        colCount: maxCol + 1,
+      };
+    });
+}
+
+/**
+ * Generate a book with 1-3 sheets and optional defined names.
+ * @param options.maxRows Maximum rows per sheet (default 30)
+ * @param options.maxCols Maximum columns per sheet (default 8)
+ */
+export function arbBook(options?: { maxRows?: number; maxCols?: number }): fc.Arbitrary<Book> {
+  return fc
+    .tuple(
+      fc.array(arbSheet(options), { minLength: 1, maxLength: 3 }),
+      fc.option(
+        fc.dictionary(
+          fc.string({ minLength: 1, maxLength: 20 }).filter((s) => /^[A-Za-z_]/.test(s)),
+          fc.oneof(fc.string({ maxLength: 50 }), arbCellRef(), arbRange()),
+        ),
+        { nil: undefined },
+      ),
+      fc.option(fc.boolean(), { nil: undefined }),
+    )
+    .map(([sheets, names, date1904]) => ({
+      sheets,
+      names: names ?? {},
+      date1904,
+    }));
 }
