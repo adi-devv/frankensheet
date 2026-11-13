@@ -8,7 +8,19 @@ export type { Book, Sheet, Row, Cell, CellValue } from './model.js';
 export { normalizeValue } from './normalize.js';
 
 // Read
-export { read } from './read.js';
+export { read, FsheetError } from './read.js';
+
+// Write
+export {
+  write,
+  xmlEscape,
+  setCell,
+  dropCachedValues,
+  setFullCalcOnLoad,
+  removeCalcChain,
+  checkXmlWellFormed,
+  setDefinedNames,
+} from './write.js';
 
 // Formula utilities
 export {

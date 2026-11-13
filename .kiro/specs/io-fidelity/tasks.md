@@ -59,31 +59,31 @@ Order: model → normalize → read → write. Write depends on formula.ts from 
 
 **Note:** Tasks 4.1–4.10 are ordered so formula.ts integration is last. Core patching logic comes first.
 
-- [ ] **4.1** Write `packages/core/src/write.ts` with signature `write(book: Book, originalBytes: Uint8Array): Uint8Array`. Use fflate `unzipSync` and `zipSync`.
+- [x] **4.1** Write `packages/core/src/write.ts` with signature `write(book: Book, originalBytes: Uint8Array): Uint8Array`. Use fflate `unzipSync` and `zipSync`.
   - Test: `packages/core/src/write.test.ts` — smoke test: read a fixture, write it back unchanged (no edits), verify byte-similar output (except shared strings order).
 
-- [ ] **4.2** Implement `xmlEscape(str: string): string` for `&<>"` to prevent injection in `<is><t>`.
+- [x] **4.2** Implement `xmlEscape(str: string): string` for `&<>"` to prevent injection in `<is><t>`.
   - Test: add to `write.test.ts` — verify escaping of `<script>` and `&`.
 
-- [ ] **4.3** Implement `setCell(sheetXml: string, ref: string, cell: Cell): string` to update or insert a `<c>` tag. Preserve `s=` attribute. Insert cells in column-sorted order within `<row>`. Create `<row>` if missing, in row-sorted order within `<sheetData>`.
+- [x] **4.3** Implement `setCell(sheetXml: string, ref: string, cell: Cell): string` to update or insert a `<c>` tag. Preserve `s=` attribute. Insert cells in column-sorted order within `<row>`. Create `<row>` if missing, in row-sorted order within `<sheetData>`.
   - Test: add to `write.test.ts` — patch an existing cell, verify XML structure. Insert a new cell into an existing row, verify order. Create a new row with a cell.
 
-- [ ] **4.4** Implement `dropCachedValues(sheetXml: string): string` to remove `<v>` children from `<c>` tags that contain `<f>`.
+- [x] **4.4** Implement `dropCachedValues(sheetXml: string): string` to remove `<v>` children from `<c>` tags that contain `<f>`.
   - Test: add to `write.test.ts` — verify formula cells lose `<v>`, non-formula cells keep `<v>`.
 
-- [ ] **4.5** Implement `setFullCalcOnLoad(wbXml: string): string` to add or update `<calcPr fullCalcOnLoad="1"/>` in `xl/workbook.xml`.
+- [x] **4.5** Implement `setFullCalcOnLoad(wbXml: string): string` to add or update `<calcPr fullCalcOnLoad="1"/>` in `xl/workbook.xml`.
   - Test: add to `write.test.ts` — start with no `<calcPr>`, verify added. Start with existing `<calcPr>`, verify attribute set.
 
-- [ ] **4.6** Implement `removeCalcChain(entries: Record<string, Uint8Array>)` to delete `xl/calcChain.xml` and its references from `[Content_Types].xml` and `xl/_rels/workbook.xml.rels`.
+- [x] **4.6** Implement `removeCalcChain(entries: Record<string, Uint8Array>)` to delete `xl/calcChain.xml` and its references from `[Content_Types].xml` and `xl/_rels/workbook.xml.rels`.
   - Test: add to `write.test.ts` — verify entries removed and Content-Type cleaned.
 
-- [ ] **4.7** Implement `checkXmlWellFormed(xml: string, path: string)` that walks tag stack and throws if mismatched or unclosed. Call on all modified XML parts before zipping.
+- [x] **4.7** Implement `checkXmlWellFormed(xml: string, path: string)` that walks tag stack and throws if mismatched or unclosed. Call on all modified XML parts before zipping.
   - Test: add to `write.test.ts` — pass valid XML, reject `<a><b></a></b>` and `<a><b></b>` (unclosed).
 
-- [ ] **4.8** Write cell changes back: for each cell in `book`, call `setCell` on the corresponding sheet XML. Handle inline strings for non-formula text, numbers for numeric values, booleans as `t="b"`, errors as `t="e"`.
+- [x] **4.8** Write cell changes back: for each cell in `book`, call `setCell` on the corresponding sheet XML. Handle inline strings for non-formula text, numbers for numeric values, booleans as `t="b"`, errors as `t="e"`.
   - Test: add to `write.test.ts` — change 3 cells (number, string, formula), verify XML output has correct tags.
 
-- [ ] **4.9** Preserve unmodified parts: compare `book.sheets` to the list of sheets from original. If a sheet is not in `book`, keep its XML from original. Keep all entries under `xl/charts/`, `xl/drawings/`, `xl/pivotTables/`, `vbaProject.bin` byte-identical.
+- [x] **4.9** Preserve unmodified parts: compare `book.sheets` to the list of sheets from original. If a sheet is not in `book`, keep its XML from original. Keep all entries under `xl/charts/`, `xl/drawings/`, `xl/pivotTables/`, `vbaProject.bin` byte-identical.
   - Test: add to `write.test.ts` — fixture with 2 sheets + chart, modify only sheet 1, verify sheet 2 and chart XML untouched.
 
 - [ ] **4.10** Add row insert/delete functions: `insertRows(sheetXml, sheetName, at, count)` and `deleteRows(sheetXml, at, count)` shift `<row r>`, `<c r>`, dimension, merges, formulas. Use `shiftFormula` from formula.ts. Shift formulas in other sheets (qualified refs only), defined names, and charts. Port logic from `spike/plan-b-fflate.ts`. These are separate exported functions used by merge in Phase 3, NOT called implicitly by write.

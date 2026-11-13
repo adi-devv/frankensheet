@@ -39,3 +39,16 @@ Format per entry: **Mode** (IDE / CLI / Crew), **What we asked**, **What Kiro pr
 - **What Kiro produced:** the three specs (our review found 18 issues, all fixed by Kiro), `formula.ts` (~1150 lines), `formula.test.ts` (80 tests), `formula.prop.test.ts` (P6, P8 at 1,000 runs) and shared fast-check arbitraries in `packages/core/src/testing/`.
 - **What we changed and why:** 5 fix rounds, each prompted with the exact compiler errors and failing tests: 53 TS errors and 9 failing tests went down to 0. Rounds 3 and 4 kept saying "fixed" while the same errors remained, so round 5 named the exact causes: `formula[i]` typed `string | undefined` under `noUncheckedIndexedAccess`, and an `i === 0` guard that only allowed a quoted sheet name (`'Sheet 1'!A1`) at the start of a formula. We also corrected one test that expected `SUM(A3:A4)` → `#REF!` after deleting rows 3–4; Excel and design.md say `SUM(#REF!)`.
 - **Result:** `npm run typecheck` clean, 80/80 core tests green, P6/P8 pass at 1,000 runs. Kiro was throttled twice; we waited and relaunched.
+
+## 2026-11-13: io-fidelity reader and writer (parts A, B1)
+- **Mode:** CLI (`kiro-cli chat --no-interactive --trust-tools=fs_read,fs_write`, Sonnet 4.5).
+- **What we asked:** implement the io-fidelity tasks: model, value normalization, the xlsx reader (part A); the patch-in-place writer `write.ts` with unit tests and property P4 `normalize(read(write(book, orig))) == book` (part B1).
+- **What Kiro produced:** `model.ts`, `normalize.ts`, `read.ts` and their tests (part A, 117 tests green); `write.ts`, `testing/blankXlsx.ts`, `write.test.ts`, `write.prop.test.ts` (part B1). Kiro hit its **monthly usage limit** at the end of B1, so we finished the fixes by hand.
+- **What we changed and why** (each found by P4 at 1,000 runs or by the unit tests):
+  1. `String.replace` with a string replacement turned `$1` in formulas into a capture group (`A$1` → `A`); switched to function replacers.
+  2. The writer rewrote every cell; it now diffs the book against `read(original)` and patches only changed cells, so untouched XML stays byte-identical.
+  3. Defined names were never written; added `setDefinedNames` (keeps unchanged elements verbatim, escapes new ones).
+  4. The reader did not decode XML entities in formulas and defined names (`&amp;`).
+  5. A defined name `__proto__` was lost by plain-object assignment; the reader now builds names with `Object.fromEntries` and the writer uses own-property checks.
+  6. Test fixes: a non-async `await import`, `date1904` false vs undefined, and two wrong expectations.
+- **Result:** `npm run typecheck` clean, 164/164 tests green, P4 passes at 1,000 runs.

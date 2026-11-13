@@ -342,7 +342,7 @@ export function parseSheet(
       const fMatch = cellContent?.match(/<f([^>]*)>(.*?)<\/f>/s);
       if (fMatch) {
         const fAttrs = fMatch[1];
-        const fContent = fMatch[2];
+        const fContent = fMatch[2] === undefined ? undefined : decodeXmlEntities(fMatch[2]);
 
         // Check for shared formula
         const tShared = fAttrs?.match(/t="shared"/);
@@ -494,7 +494,9 @@ function convert1904To1900(serial: number): number {
  * Parse defined names from xl/workbook.xml
  */
 export function parseDefinedNames(xml: string): Record<string, string> {
-  const names: Record<string, string> = {};
+  // Collect entries first: Object.fromEntries defines own properties, so a
+  // name like "__proto__" survives instead of hitting the prototype setter.
+  const entries: Array<[string, string]> = [];
 
   // Match <definedName name="...">formula</definedName>
   const namePattern = /<definedName\s+([^>]*)>(.*?)<\/definedName>/gs;
@@ -507,9 +509,9 @@ export function parseDefinedNames(xml: string): Record<string, string> {
 
     const nameMatch = attrs.match(/name="([^"]+)"/);
     if (nameMatch) {
-      names[nameMatch[1]!] = content.trim();
+      entries.push([decodeXmlEntities(nameMatch[1]!), decodeXmlEntities(content.trim())]);
     }
   }
 
-  return names;
+  return Object.fromEntries(entries);
 }
