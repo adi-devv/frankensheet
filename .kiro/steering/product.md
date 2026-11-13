@@ -12,9 +12,10 @@ inclusion: always
 ## Core features (must ship)
 1. **Engine** (`packages/core`): read .xlsx → cell model, diff, 3-way merge, risk rules. Pure TypeScript; runs in Node and the browser.
 2. **Git integration** (`apps/cli`, bin `fsheet`):
-   - `fsheet install` registers a textconv diff driver and a merge driver for `*.xlsx`.
+   - `fsheet install` registers a textconv diff driver and a merge driver for `*.xlsx`; `fsheet uninstall` reverses it.
    - `git diff` shows cell changes; `git merge` merges cell by cell.
    - On a real conflict, the driver saves a sidecar and exits non-zero. `fsheet resolve` opens a local browser view to pick sides.
+   - `fsheet scan <file> [--base <file>]` runs the possessed-cell rules on a file.
 3. **Web app** (`apps/web`):
    - drop in 2 files (diff) or 3 (merge)
    - colored diff grid, conflict picker, risk panel
@@ -30,7 +31,7 @@ inclusion: always
 5. **Kiro Crew app** (separate repo `frankensheet-crew`): MCP tools + "Sheet Warden" agent that reviews spreadsheet changes.
 
 ## Non-goals
-- Merging charts, pivots, macros or conditional formats. These are kept from the "ours" file untouched.
+- Merging charts, pivots, macros, conditional formats, data validation, comments or images. These are kept from the "ours" file untouched.
 - Column-insert detection. Detect it and warn only.
 - Real-time co-editing, accounts, servers that store user files.
 

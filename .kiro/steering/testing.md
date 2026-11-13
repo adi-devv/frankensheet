@@ -20,8 +20,9 @@ inclusion: always
   - `apply(diff(a, b), a) == b`
   - `normalize(read(write(s))) == s`
   - inserting k rows (key mode) → exactly k inserts, 0 cell changes
-  - `toA1(toR1C1(f)) == f`
+  - `toA1(toR1C1(f, at), at) == f` for generated formulas
   - non-overlapping edits never conflict
+  - shifting a formula then un-shifting it is the identity
 - **Fixtures:**
   - Real `.xlsx` files go in `/fixtures`, with expected JSON.
   - Tests may write only to `fixtures/out/`.

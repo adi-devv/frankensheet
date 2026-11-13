@@ -6,7 +6,7 @@ inclusion: always
 ```
 .kiro/           steering, specs, hooks, agents (always committed)
 packages/core/   engine
-  src/model.ts        Book/Sheet/Row/Cell types
+  src/model.ts        Book (incl. defined names) / Sheet / Row / Cell types
   src/read.ts         .xlsx bytes -> Book
   src/write.ts        Book (+ original bytes) -> .xlsx bytes
   src/normalize.ts    value normalization
@@ -17,7 +17,7 @@ packages/core/   engine
   src/risks/          one file per rule + index.ts
   src/testing/        shared fast-check arbitraries
   src/**/*.test.ts    unit tests next to code; *.prop.test.ts for property tests
-apps/cli/        `fsheet` CLI (install, textconv, merge-driver, resolve, scan)
+apps/cli/        `fsheet` CLI (install, uninstall, textconv, merge-driver, resolve, scan)
 apps/web/        Vite + React app (pages/, components/, theme/)
 fixtures/        .xlsx test workbooks + expected JSON (fixtures/out/ is gitignored)
 demo/            scripts and sample data for the demo video

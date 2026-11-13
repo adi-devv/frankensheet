@@ -9,6 +9,7 @@ inclusion: always
   - In key mode: the key column's value.
   - Otherwise: the alignment pairing produced by `align.ts`.
 - **Column key:** the header text if the sheet has a header row, else the column index.
+- **Sheet rename:** if a sheet is renamed on one side but unchanged on the other, keep the new name. If renamed on both sides to different names, flag a conflict. Alignment matches sheets by their base name when available.
 
 ## Values
 - Model types: `null | number | string | boolean | { error: string }`.
@@ -17,8 +18,15 @@ inclusion: always
 - Rich text is flattened to plain text.
 - Numbers are compared exactly (no rounding), except in the `magnitude-jump` rule.
 
+## OOXML reading rules
+- **Shared strings:** resolve indices from `xl/sharedStrings.xml` to actual strings.
+- **Inline strings:** `<is><t>…</t></is>` cells are treated the same as shared-string cells.
+- **Shared formulas:** `<f t="shared" ref="…" si="…">` stores one master formula; slave cells reference it by `si`. Expand all to per-cell A1 formulas on read.
+- **date1904:** `<workbookPr date1904="1"/>` switches to the 1904 date system. On read, convert 1904 serials to 1900 serials. On write, preserve the original setting.
+- **Defined names:** workbook-level `<definedNames>` are read into `Book.names: Record<string, string>`. They are preserved from "ours" on write and are never merged.
+
 ## Formulas
-- Stored as A1 text without the leading `=`, plus a derived **R1C1-relative** form `fr`.
+- Stored as A1 text without the leading `=`, plus a derived **R1C1-relative** form `fr`. Deriving `fr` requires the cell's `(row, col)` position: `toR1C1(f, at)`.
 - Two formula cells are "the same" when their `fr` strings are equal. A reference that only shifted because rows moved is **not** a change.
 - Shared formulas are expanded into per-cell formulas on read.
 - Cached values of formula cells are not trusted after a merge. Writers drop them and set `fullCalcOnLoad="1"`.
