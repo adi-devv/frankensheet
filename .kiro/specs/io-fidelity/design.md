@@ -9,6 +9,8 @@ Two writer strategies were spiked:
 
 Test edits per fixture: change B2 (value), C2 (formula→constant), E5 (value), insert 2 rows at row 3, set A3:B4 to mark the insert. Outputs validated by COM-opening in Excel 16 (repair dialog = fail) and XML diff inspection (shifting correctness).
 
+**date1904 handling:** Do NOT convert every number. Parse `xl/styles.xml` cellXfs → numFmtId; a cell is a date if its numFmtId is a built-in date id (14–22, 45–47) or a custom numFmt whose code has d/m/y/h/s outside quotes and brackets. Convert only those cells on read; store `Book.date1904 = true`; write converts them back.
+
 ## Spike method
 1. Read fixture with both plans
 2. Apply identical edits
@@ -53,8 +55,13 @@ Test edits per fixture: change B2 (value), C2 (formula→constant), E5 (value), 
 Reading may also use fflate + lightweight SAX/regex parser for speed and control.
 
 ## Writer design
-Pure functions per XML part, composed into a single `write(book, originalBytes)` pipeline:
+Pure functions per XML part, composed into a single `write(book, originalBytes)` pipeline.
 
+**write(book, originalBytes) contract:** syncs cell-by-cell by position against `read(originalBytes)`: set changed cells, delete cells that are now empty, add/remove trailing rows. Does NOT implicitly insert or delete rows within the sheet.
+
+**insertRows/deleteRows(sheetXml, ...)** are separate exported functions used by merge in Phase 3, not called implicitly by write.
+
+Functions:
 - **Reference shifting:** `shiftRef(ref, at, count)`, `shiftRange(range, at, count)`, `shiftFormula(formula, sheetName, at, count, mode: 'same-sheet' | 'other-sheet')`
 - **Cell operations:** `setCell(sheetXml, ref, value)`, `deleteCell(sheetXml, ref)`
 - **Row operations:** `insertRows(sheetXml, sheetName, at, count)`, `deleteRows(sheetXml, at, count)`
@@ -96,5 +103,5 @@ Linked to `.kiro/steering/testing.md`:
 **P3: ref-shift correctness**  
 For all refs in formulas, dimension, merges, CF, DV, hyperlinks: `rowOf(shiftRef(r, at, k)) == rowOf(r) + k` when `rowOf(r) >= at`, else `rowOf(r)` unchanged. Verifies arithmetic correctness of shifts.
 
-**P4: XML well-formedness**  
-`checkXmlWellFormed(xml, path)` passes for all modified parts. Verifies no malformed XML that would trigger repair prompts.
+**P4: XML well-formedness + roundtrip equality**  
+`checkXmlWellFormed(xml, path)` passes for all modified parts. Generated books need a base file: add a tiny `blankXlsx(sheetNames)` test helper in `packages/core/src/testing/` that builds a minimal valid .xlsx with fflate. Formula cells lose their cached value on write, so the P4 comparison ignores `v` on formula cells (state this in normalize or the test).
