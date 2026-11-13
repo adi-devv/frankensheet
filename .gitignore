@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.wrangler/
+*.log
+.env
+.env.*
+fixtures/out/
+# NOTE: .kiro/ must stay committed (hackathon rule). Do not ignore it.
