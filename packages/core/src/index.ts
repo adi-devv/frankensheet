@@ -2,7 +2,11 @@
 export const VERSION = '0.0.0';
 
 // Model types
-export type { Book, Sheet, Row, Cell, CellValue } from './model.js';
+export type { Book, Sheet, Row, Cell, CellValue, RowOp, CellChange, SheetDiff, BookDiff } from './model.js';
+
+// Diff and git text conversion
+export { diff, apply } from './diff.js';
+export { toTextconv } from './textconv.js';
 
 // Normalization
 export { normalizeValue } from './normalize.js';

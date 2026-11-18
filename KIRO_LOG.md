@@ -52,3 +52,6 @@ Format per entry: **Mode** (IDE / CLI / Crew), **What we asked**, **What Kiro pr
   5. A defined name `__proto__` was lost by plain-object assignment; the reader now builds names with `Object.fromEntries` and the writer uses own-property checks.
   6. Test fixes: a non-async `await import`, `date1904` false vs undefined, and two wrong expectations.
 - **Result:** `npm run typecheck` clean, 164/164 tests green, P4 passes at 1,000 runs.
+
+## 2026-11-18: remaining Phase 2 work
+Kiroween was dropped (rules require Kiro, no credits). io-fidelity 4.10/4.13 and the diff/textconv/CLI spec were finished with Codex (gpt-6.1-sol) and verified by Claude, not Kiro. 220 tests green.

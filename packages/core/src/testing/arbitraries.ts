@@ -207,7 +207,7 @@ export function arbSheet(options?: { maxRows?: number; maxCols?: number }): fc.A
 export function arbBook(options?: { maxRows?: number; maxCols?: number }): fc.Arbitrary<Book> {
   return fc
     .tuple(
-      fc.array(arbSheet(options), { minLength: 1, maxLength: 3 }),
+      fc.uniqueArray(arbSheet(options), { minLength: 1, maxLength: 3, selector: (sheet) => sheet.name }),
       fc.option(
         fc.dictionary(
           fc.string({ minLength: 1, maxLength: 20 }).filter((s) => /^[A-Za-z_]/.test(s)),
@@ -222,4 +222,34 @@ export function arbBook(options?: { maxRows?: number; maxCols?: number }): fc.Ar
       names: names ?? {},
       date1904,
     }));
+}
+
+/** Small edits used to derive a target book for the diff/apply property. */
+export type Edit =
+  | { type: 'editCell'; sheet: number; row: number; col: number; newValue: CellValue; formula?: string; remove: boolean }
+  | { type: 'insertRow'; sheet: number; at: number; content: Row }
+  | { type: 'deleteRow'; sheet: number; at: number; count: number };
+
+export function arbEdit(options?: { maxRows?: number; maxCols?: number }): fc.Arbitrary<Edit> {
+  const maxRows = options?.maxRows ?? 30;
+  const maxCols = options?.maxCols ?? 8;
+  const sheet = fc.integer({ min: 0, max: 2 });
+  const at = fc.integer({ min: 0, max: maxRows - 1 });
+  return fc.oneof(
+    fc.record({
+      type: fc.constant('editCell' as const),
+      sheet,
+      row: at,
+      col: fc.integer({ min: 0, max: maxCols - 1 }),
+      newValue: arbCellValue(),
+      formula: fc.option(arbFormula(), { nil: undefined }),
+      remove: fc.boolean(),
+    }),
+    fc.record({ type: fc.constant('insertRow' as const), sheet, at, content: arbRow(maxCols) }),
+    fc.record({ type: fc.constant('deleteRow' as const), sheet, at, count: fc.integer({ min: 1, max: 3 }) }),
+  );
+}
+
+export function arbEditSequence(options?: { maxRows?: number; maxCols?: number }): fc.Arbitrary<Edit[]> {
+  return fc.array(arbEdit(options), { maxLength: 20 });
 }

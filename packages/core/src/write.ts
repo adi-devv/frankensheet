@@ -5,7 +5,7 @@ import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import type { Book, Cell, CellValue } from './model.js';
 import { FsheetError, parseWorkbook, parseWorkbookRels, read } from './read.js';
 import { normalizeValue } from './normalize.js';
-import { parseRef, indexToCol } from './formula.js';
+import { parseRef, indexToCol, shiftFormula, tokenize } from './formula.js';
 
 /**
  * Write a Book back to .xlsx bytes.
@@ -124,6 +124,116 @@ export function write(book: Book, originalBytes: Uint8Array): Uint8Array {
 
   // Zip back up
   return zipSync(entries, { level: 6 });
+}
+
+/**
+ * Insert rows before the one-based Excel row `at`. Negative count deletes rows.
+ * Patch the target worksheet only; use the global shift helpers for other parts.
+ * These operations are explicit and are never called implicitly by write().
+ */
+export function insertRows(sheetXml: string, sheetName: string, at: number, count: number): string {
+  return shiftRows(sheetXml, sheetName, at, count);
+}
+
+/**
+ * Delete `count` rows starting at the one-based Excel row `at`.
+ * Supply sheetName to also shift references qualified with the target sheet name.
+ */
+export function deleteRows(sheetXml: string, at: number, count: number, sheetName = ''): string {
+  if (count < 0) throw new FsheetError('write:invalid_rows', 'Delete count must be nonnegative');
+  return shiftRows(sheetXml, sheetName, at, -count);
+}
+
+function shiftRows(sheetXml: string, sheetName: string, at: number, count: number): string {
+  if (!Number.isSafeInteger(at) || at < 1 || !Number.isSafeInteger(count)) {
+    throw new FsheetError('write:invalid_rows', 'Row position must be positive and count must be an integer');
+  }
+  if (count === 0) return sheetXml;
+  const opts = { sheet: sheetName, at: at - 1, count };
+  const shiftRange = (ref: string): string => shiftFormula(ref, opts);
+
+  // Remove deleted rows before moving the survivors, including empty styled rows.
+  sheetXml = sheetXml.replace(/<row\b[^>]*\/>|<row\b[^>]*>[\s\S]*?<\/row>/g, (rowXml) => {
+    const rowNum = Number(rowXml.match(/^<row\b[^>]*\br="(\d+)"/)?.[1]);
+    if (count < 0 && rowNum >= at && rowNum < at - count) return '';
+    return rowXml.replace(/<(row|c)\b[^>]*>/g, (tag) =>
+      tag.replace(/\br="([A-Z]*)(\d+)"/, (attr, col: string, row: string) =>
+        Number(row) >= at ? `r="${col}${Number(row) + count}"` : attr,
+      ),
+    );
+  });
+
+  // Ranges that are entirely deleted must not leave #REF! in XML attributes.
+  sheetXml = sheetXml.replace(/<(dimension|mergeCell|hyperlink)\b[^>]*\/?\s*>/g, (tag, kind: string) => {
+    const ref = tag.match(/\bref="([^"]*)"/)?.[1];
+    if (ref === undefined) return tag;
+    const shifted = shiftRange(ref);
+    if (shifted === '#REF!') return kind === 'dimension' ? tag.replace(/\bref="[^"]*"/, 'ref="A1"') : '';
+    return tag.replace(/\bref="[^"]*"/, () => `ref="${shifted}"`);
+  });
+  sheetXml = sheetXml.replace(/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/g, (block) => {
+    const count = (block.match(/<mergeCell\b/g) ?? []).length;
+    return count === 0 ? '' : block.replace(/\bcount="\d+"/, `count="${count}"`);
+  });
+
+  // Preserve the spike's conditional-formatting, validation and hyperlink shifts.
+  sheetXml = sheetXml.replace(
+    /<conditionalFormatting\b[^>]*>[\s\S]*?<\/conditionalFormatting>|<dataValidation\b[^>]*\/>|<dataValidation\b[^>]*>[\s\S]*?<\/dataValidation>/g,
+    (block) => {
+      const sqref = block.match(/\bsqref="([^"]*)"/)?.[1];
+      if (sqref === undefined) return block;
+      const shifted = sqref.split(/\s+/).map(shiftRange).filter((ref) => ref !== '#REF!').join(' ');
+      return shifted ? block.replace(/\bsqref="[^"]*"/, () => `sqref="${shifted}"`) : '';
+    },
+  );
+  sheetXml = sheetXml.replace(/<dataValidations\b[^>]*>[\s\S]*?<\/dataValidations>/g, (block) => {
+    const count = (block.match(/<dataValidation\b/g) ?? []).length;
+    return count === 0 ? '' : block.replace(/\bcount="\d+"/, `count="${count}"`);
+  });
+
+  // Shared/array formula ranges also describe positions on the target sheet.
+  sheetXml = sheetXml.replace(/<f\b[^>]*>/g, (tag) =>
+    tag.replace(/\bref="([^"]*)"/, (_attr, ref: string) => {
+      const shifted = shiftRange(ref);
+      return shifted === '#REF!' ? '' : `ref="${shifted}"`;
+    }),
+  );
+  sheetXml = sheetXml.replace(/(<f\b[^>]*>)([^<]*)(<\/f>)/g, (_match, open: string, formula: string, close: string) =>
+    open + xmlEscape(shiftFormula(xmlUnescape(formula), opts)) + close,
+  );
+  return dropCachedValues(sheetXml);
+}
+
+/** Shift only qualified references to sheetName; at is one-based, count is signed. */
+function shiftQualifiedFormula(formula: string, sheetName: string, at: number, count: number): string {
+  return tokenize(formula).map((token) => {
+    if ((token.type === 'ref' || token.type === 'range') && token.text.includes('!')) {
+      return shiftFormula(token.text, { sheet: sheetName, at: at - 1, count });
+    }
+    return token.text;
+  }).join('');
+}
+
+/** Shift qualified references in another worksheet, leaving its local refs alone. */
+export function shiftOtherSheetFormulas(sheetXml: string, sheetName: string, at: number, count: number): string {
+  const shifted = sheetXml.replace(/(<f\b[^>]*>)([^<]*)(<\/f>)/g, (_match, open: string, formula: string, close: string) =>
+    open + xmlEscape(shiftQualifiedFormula(xmlUnescape(formula), sheetName, at, count)) + close,
+  );
+  return shifted === sheetXml ? sheetXml : dropCachedValues(shifted);
+}
+
+/** Shift workbook names qualified with the target sheet, preserving name attributes. */
+export function shiftDefinedNames(wbXml: string, sheetName: string, at: number, count: number): string {
+  return wbXml.replace(/(<definedName\b[^>]*>)([^<]*)(<\/definedName>)/g, (_match, open: string, formula: string, close: string) =>
+    open + xmlEscape(shiftQualifiedFormula(xmlUnescape(formula), sheetName, at, count)) + close,
+  );
+}
+
+/** Shift chart source formulas, including charts using a default XML namespace. */
+export function shiftChartFormulas(chartXml: string, sheetName: string, at: number, count: number): string {
+  return chartXml.replace(/(<((?:[\w.-]+:)?f)\b[^>]*>)([^<]*)(<\/\2>)/g, (_match, open: string, _tag: string, formula: string, close: string) =>
+    open + xmlEscape(shiftQualifiedFormula(xmlUnescape(formula), sheetName, at, count)) + close,
+  );
 }
 
 /**

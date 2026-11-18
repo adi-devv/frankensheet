@@ -34,6 +34,8 @@ export interface Cell {
  */
 export interface Row {
   cells: Map<number, Cell>;
+  /** Derived signature of the row's values and relative formulas. */
+  sig?: string;
 }
 
 /**
@@ -57,5 +59,40 @@ export interface Sheet {
 export interface Book {
   sheets: Sheet[];
   names: Record<string, string>;
+  date1904?: boolean;
+}
+
+/** Row coordinates refer to the sheet state at the time the op is applied. */
+export interface RowOp {
+  type: 'insert' | 'delete';
+  at: number;
+  count?: number;
+  content?: Row;
+}
+
+export interface CellChange {
+  row: number;
+  col: number;
+  before?: Cell;
+  after?: Cell;
+  kind: 'value' | 'formula' | 'both';
+}
+
+export interface SheetDiff {
+  rowOps: RowOp[];
+  cellChanges: CellChange[];
+  sheetAdded?: true;
+  sheetRemoved?: true;
+  addedSheet?: Sheet;
+  /** Target metadata and sparse row shape, when changed. */
+  colCount?: number;
+  rowIndices?: number[];
+}
+
+export interface BookDiff {
+  sheets: Record<string, SheetDiff>;
+  /** Target workbook metadata, when changed. */
+  sheetOrder?: string[];
+  names?: Record<string, string>;
   date1904?: boolean;
 }

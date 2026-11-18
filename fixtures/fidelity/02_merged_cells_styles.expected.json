@@ -1,0 +1,21 @@
+{
+  "sheets": [
+    {
+      "name": "Report",
+      "rows": {
+        "1": ["Annual Performance Report 2024"],
+        "2": ["Department Info", "SPIKE-B-CHANGED", 42, null, "H2 Results"],
+        "3": ["INSERTED-1", 100],
+        "4": ["INSERTED-2", 200],
+        "5": ["Dept", "Head", "Target", "Actual", "Target", "Actual", "YoY%"],
+        "6": ["Engineering", "Alice", 500000, 512000, 530000, 548000],
+        "7": ["Marketing", "Bob", 200000, 185000, 999, 221000],
+        "8": ["Sales", "Carol", 800000, 820000, 850000, 902000],
+        "9": ["Finance", "Dave", 100000, 97000, 105000, 108000],
+        "10": ["HR", "Eve", 80000, 79500, 85000, 83000],
+        "11": ["Operations", "Frank", 350000, 361000, 370000, 375000]
+      }
+    }
+  ],
+  "names": {}
+}

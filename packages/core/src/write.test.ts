@@ -10,11 +10,125 @@ import {
   setFullCalcOnLoad,
   removeCalcChain,
   checkXmlWellFormed,
+  insertRows,
+  deleteRows,
+  shiftOtherSheetFormulas,
+  shiftDefinedNames,
+  shiftChartFormulas,
 } from './write.js';
 import { read } from './read.js';
 import { buildMinimalXlsx } from './testing/minimalXlsx.js';
 import { blankXlsx } from './testing/blankXlsx.js';
 import type { Book, Cell } from './model.js';
+
+describe('row operations', () => {
+  const sheetXml = '<worksheet><dimension ref="A1:F5"/><sheetData>' +
+    '<row r="1"><c r="A1"><v>10</v></c></row>' +
+    '<row customHeight="1" r="3"><c s="2" r="B3"><v>20</v></c>' +
+    '<c r="F3"><f>SUM(B3:E3)+$A$5+Other!A3+Budget!A3</f><v>30</v></c></row>' +
+    '<row r="4"/><row r="5"><c r="A5" s="2"/></row></sheetData>' +
+    '<mergeCells count="2"><mergeCell ref="A1:B1"/><mergeCell ref="C3:D3"/></mergeCells>' +
+    '<conditionalFormatting sqref="B2:B5 D3:D5"><cfRule type="expression"/></conditionalFormatting>' +
+    '<dataValidations count="1"><dataValidation sqref="E3:E5"/></dataValidations>' +
+    '<hyperlinks><hyperlink ref="B3" r:id="rId1"/></hyperlinks></worksheet>';
+
+  it('inserts two rows, shifting cells, metadata and same-sheet formulas once', () => {
+    const result = insertRows(sheetXml, 'Budget', 3, 2);
+    expect(result).toContain('<row customHeight="1" r="5">');
+    expect(result).toContain('<c s="2" r="B5"><v>20</v></c>');
+    expect(result).toContain('<row r="6"/>');
+    expect(result).toContain('<c r="A7" s="2"/>');
+    expect(result).toContain('SUM(B5:E5)+$A$7+Other!A3+Budget!A5');
+    expect(result).not.toContain('<v>30</v>');
+    expect(result).toContain('dimension ref="A1:F7"');
+    expect(result).toContain('mergeCell ref="C5:D5"');
+    expect(result).toContain('sqref="B2:B7 D5:D7"');
+    expect(result).toContain('sqref="E5:E7"');
+    expect(result).toContain('hyperlink ref="B5"');
+    checkXmlWellFormed(result, 'insert.xml');
+  });
+
+  it('deletes one row and shifts surviving rows and references up', () => {
+    const result = deleteRows(insertRows(sheetXml, 'Budget', 3, 2), 3, 1, 'Budget');
+    expect(result).toContain('<row customHeight="1" r="4">');
+    expect(result).toContain('<c s="2" r="B4">');
+    expect(result).toContain('SUM(B4:E4)+$A$6+Other!A3+Budget!A4');
+    expect(result).toContain('dimension ref="A1:F6"');
+    expect(result).toContain('mergeCell ref="C4:D4"');
+    checkXmlWellFormed(result, 'delete.xml');
+  });
+
+  it('removes deleted rows and merges, clips ranges and makes deleted refs #REF!', () => {
+    const xml = setCell(sheetXml, 'A1', { v: null, f: 'B3+SUM(B2:B5)+SUM(C3:D3)' });
+    const result = deleteRows(xml, 3, 1);
+    expect(result).not.toContain('customHeight');
+    expect(result).toContain('<row r="3"/>');
+    expect(result).toContain('<row r="4"><c r="A4" s="2"/></row>');
+    expect(result).toContain('#REF!+SUM(B2:B4)+SUM(#REF!)');
+    expect(result).toContain('<mergeCells count="1"><mergeCell ref="A1:B1"/></mergeCells>');
+    expect(result).not.toContain('<hyperlink ');
+    expect(result).toContain('sqref="E3:E4"');
+    checkXmlWellFormed(result, 'delete.xml');
+  });
+
+  it('removes fully deleted metadata ranges without leaving invalid refs', () => {
+    const result = deleteRows(sheetXml, 1, 5);
+    expect(result).toContain('<dimension ref="A1"/>');
+    expect(result).not.toMatch(/<row\b|<mergeCells\b|<conditionalFormatting\b|<dataValidations\b|#REF!/);
+    checkXmlWellFormed(result, 'empty.xml');
+  });
+
+  it('shifts shared and array formula ranges and preserves formula string literals', () => {
+    const xml = '<worksheet><sheetData><row r="3"><c r="A3">' +
+      '<f t="shared" ref="A3:A5" si="0">IF(B3&lt;5,&quot;B3&quot;,\'O\'\'Brien\'!$A$3)</f><v>1</v>' +
+      '</c><c r="B3"><f t="shared" si="1"/></c></row></sheetData></worksheet>';
+    const result = insertRows(xml, "O'Brien", 3, 2);
+    expect(result).toContain('ref="A5:A7"');
+    expect(result).toContain('IF(B5&lt;5,&quot;B3&quot;,\'O\'\'Brien\'!$A$5)');
+    expect(result).toContain('<f t="shared" si="1"/>');
+    checkXmlWellFormed(result, 'shared.xml');
+  });
+
+  it('shifts only qualified refs in other sheets, including quoted names and ranges', () => {
+    const xml = '<worksheet><sheetData><row r="1"><c r="A1"><f>' +
+      'SUM(\'My Sheet\'!$B$3:E5)+B3+Other!B3+IF(A1&lt;2,&quot;My Sheet!B3&quot;,0)' +
+      '</f><v>5</v></c></row></sheetData></worksheet>';
+    const result = shiftOtherSheetFormulas(xml, 'My Sheet', 3, 2);
+    expect(result).toContain('SUM(\'My Sheet\'!$B$5:E7)+B3+Other!B3+IF(A1&lt;2,&quot;My Sheet!B3&quot;,0)');
+    expect(result).not.toContain('<v>5</v>');
+    expect(shiftOtherSheetFormulas(xml, 'Unrelated', 3, 2)).toBe(xml);
+    expect(shiftOtherSheetFormulas(result, 'My Sheet', 3, -2)).toContain("'My Sheet'!$B$3:E5");
+    checkXmlWellFormed(result, 'other.xml');
+  });
+
+  it('shifts qualified defined names and chart sources for insert and delete', () => {
+    const names = '<workbook><definedNames><definedName name="Range" localSheetId="0">' +
+      'Budget!$A$2:$B$5</definedName><definedName name="Local">A3</definedName>' +
+      '<definedName name="Other">Other!A3</definedName></definedNames></workbook>';
+    const shifted = shiftDefinedNames(names, 'Budget', 3, 2);
+    expect(shifted).toContain('localSheetId="0">Budget!$A$2:$B$7');
+    expect(shifted).toContain('name="Local">A3');
+    expect(shifted).toContain('name="Other">Other!A3');
+    expect(shiftDefinedNames(shifted, 'Budget', 3, -2)).toBe(names);
+    for (const tag of ['f', 'c:f']) {
+      const chart = `<chart><${tag}>Budget!$B$3:$B$5</${tag}><${tag}>Other!A3</${tag}></chart>`;
+      const result = shiftChartFormulas(chart, 'Budget', 3, 2);
+      expect(result).toContain('Budget!$B$5:$B$7');
+      expect(result).toContain('Other!A3');
+      expect(shiftChartFormulas(chart, 'Budget', 3, -1)).toContain('Budget!$B$3:$B$4');
+      checkXmlWellFormed(result, 'chart.xml');
+    }
+    checkXmlWellFormed(shifted, 'names.xml');
+  });
+
+  it('treats zero count as a no-op and rejects invalid positions/counts', () => {
+    expect(insertRows(sheetXml, 'Budget', 3, 0)).toBe(sheetXml);
+    expect(deleteRows(sheetXml, 3, 0)).toBe(sheetXml);
+    expect(() => insertRows(sheetXml, 'Budget', 0, 1)).toThrow(/Row position/);
+    expect(() => insertRows(sheetXml, 'Budget', 3, 0.5)).toThrow(/count/);
+    expect(() => deleteRows(sheetXml, 3, -1)).toThrow(/nonnegative/);
+  });
+});
 
 describe('xmlEscape', () => {
   it('should escape & < > "', () => {
